@@ -8,6 +8,10 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
+      - uses: leafo/gh-actions-lua@v8
+      - uses: leafo/gh-actions-luarocks@v4
+      - name: Setup luacheck
+        run: luarocks install luacheck
       - name: Setup Neovim
         uses: rhysd/action-setup-vim@v1
         with:
