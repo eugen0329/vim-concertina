@@ -1,8 +1,7 @@
 on:
   push:
-  schedule:
-    - cron: '0 0 */3 * *'
-
+  schedule: # run every day as it depends on neovim@nightly version
+    - cron: '0 8 */1 * *'
 jobs:
   verify:
     runs-on: ubuntu-latest
