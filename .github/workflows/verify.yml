@@ -1,0 +1,18 @@
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 0 */3 * *'
+
+jobs:
+  verify:
+    steps:
+      - name: Setup Neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: nightly
+      - name: Lint
+        run: make lint
+      - name: Test
+        run: make test
