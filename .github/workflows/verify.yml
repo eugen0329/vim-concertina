@@ -6,6 +6,7 @@ on:
 
 jobs:
   verify:
+    runs-on: ubuntu-latest
     steps:
       - name: Setup Neovim
         uses: rhysd/action-setup-vim@v1
