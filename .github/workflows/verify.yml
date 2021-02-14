@@ -14,8 +14,6 @@ jobs:
           neovim: true
           version: nightly
       - uses: leafo/gh-actions-lua@v8
-        with:
-          luaVersion: '5.3'
       - uses: leafo/gh-actions-luarocks@v4
       - run: luarocks install luacheck
 
