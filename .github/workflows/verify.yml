@@ -1,0 +1,20 @@
+on:
+  push:
+  schedule: # run every day as it depends on neovim@nightly version
+    - cron: '0 8 */1 * *'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: nightly
+      - uses: leafo/gh-actions-lua@v8
+      - uses: leafo/gh-actions-luarocks@v4
+      - run: luarocks install luacheck
+
+      - run: make test
+      - run: make lint
