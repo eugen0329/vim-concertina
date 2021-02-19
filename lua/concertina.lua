@@ -191,7 +191,8 @@ end
 function Layout:is_stretched(winnr)
   local is_stretched = false
 
-  -- It's stretched if 'col' is in path and 'row' is not in path[1:]
+  -- It's stretched unless 'row' is encountered after the first, but not the
+  -- only node.
   local function recurse(parent, winid, depth)
     if parent[1] == 'leaf' then return end
     if parent[1] == 'row' and depth > 0 then
