@@ -1,13 +1,13 @@
-local M =  {last_handled={}, toplines={}}
+local M =  {Layout={}, last_handled={}, toplines={}}
 local command = function(cmd) return vim.api.nvim_exec(cmd, false) end
 local MAX_HEIGHT = 999
 
-local Win, Viewport, Layout, WinResizeObserver = {}, {}, {}, {}
+local Win, Viewport, Layout, WinResizeObserver = {}, {}, M.Layout, {}
 
 function M.init()
   if vim.g.loaded_concertina then return end
 
-  vim.g.loaded_concertina = '0.0.1'
+  vim.g.loaded_concertina = '0.0.2'
   vim.o.winminheight = 0
 
   command([[
@@ -191,19 +191,26 @@ end
 function Layout:is_stretched(winnr)
   local is_stretched = false
 
-  local function recurse(root, winid)
-    if root[1] == 'leaf' then return end
+  -- It's stretched unless 'row' is encountered after the first, but not the
+  -- only node.
+  local function recurse(parent, winid, depth)
+    if parent[1] == 'leaf' then return end
+    if parent[1] == 'row' and depth > 0 then
+      is_stretched = false
+      return
+    end
 
-    for _, node in pairs(root[2]) do
-      if node[1] == 'leaf' and node[2] == winid then
-        is_stretched = root[1] == 'col'
+    for _, child in pairs(parent[2]) do
+      if child[1] == 'leaf' and child[2] == winid then
+        is_stretched = parent[1] == 'col'
         return
       end
-      recurse(node, winid)
+
+      recurse(child, winid, depth + 1)
     end
   end
 
-  recurse(self.tree, vim.fn.win_getid(winnr))
+  recurse(self.tree, vim.fn.win_getid(winnr), 0)
   return is_stretched
 end
 
