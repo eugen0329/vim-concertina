@@ -1,3 +1,4 @@
+local Layout = require('concertina').Layout
 local M = {}
 
 function M.goto_window(number)
@@ -23,6 +24,18 @@ function M.exec(commands)
       vim.api.nvim_exec('doau BufEnter', false)
     end
   end
+end
+
+function M.stretched_windows()
+  local result, layout = {}, Layout:new()
+
+  for winnr = 1, vim.fn.winnr('$') do
+    if layout:is_stretched(winnr) then
+      table.insert(result, winnr)
+    end
+  end
+
+  return result
 end
 
 return M

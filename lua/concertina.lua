@@ -1,8 +1,8 @@
-local M =  {last_handled={}, toplines={}}
+local M =  {Layout={}, last_handled={}, toplines={}}
 local command = function(cmd) return vim.api.nvim_exec(cmd, false) end
 local MAX_HEIGHT = 999
 
-local Win, Viewport, Layout, WinResizeObserver = {}, {}, {}, {}
+local Win, Viewport, Layout, WinResizeObserver = {}, {}, M.Layout, {}
 
 function M.init()
   if vim.g.loaded_concertina then return end
@@ -191,19 +191,35 @@ end
 function Layout:is_stretched(winnr)
   local is_stretched = false
 
-  local function recurse(root, winid)
-    if root[1] == 'leaf' then return end
+  local function recurse(parent, winid, path)
+    if parent[1] == 'leaf' then return end
 
-    for _, node in pairs(root[2]) do
-      if node[1] == 'leaf' and node[2] == winid then
-        is_stretched = root[1] == 'col'
+    for _, child in pairs(parent[2]) do
+      if child[1] == 'leaf' and child[2] == winid then
+        table.insert(path, parent[1])
+        -- It's stretched if 'col' is in path and 'row' is not in path[1:]
+
+        if #path == 1 then
+          is_stretched = path[1] == 'col'
+          return
+        end
+
+        is_stretched = true
+        for i, node_type in pairs(path) do
+          if i > 1 and node_type == 'row' then
+            is_stretched = false
+            break
+          end
+        end
+
         return
       end
-      recurse(node, winid)
+
+      recurse(child, winid, vim.list_extend(vim.deepcopy(path), {parent[1]}))
     end
   end
 
-  recurse(self.tree, vim.fn.win_getid(winnr))
+  recurse(self.tree, vim.fn.win_getid(winnr), {})
   return is_stretched
 end
 
