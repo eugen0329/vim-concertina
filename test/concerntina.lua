@@ -189,7 +189,7 @@ end
 -- +----------+------+
 -- |    4 output     |
 -- +-----------------+
-function test_debugger_layout()
+function test_go_debugger_layout()
   vim.g.concertina_win_heights = {
     godebugstacktrace=8,
     godebugoutput=5,

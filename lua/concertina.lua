@@ -191,35 +191,25 @@ end
 function Layout:is_stretched(winnr)
   local is_stretched = false
 
-  local function recurse(parent, winid, path)
+  -- It's stretched if 'col' is in path and 'row' is not in path[1:]
+  local function recurse(parent, winid, depth)
     if parent[1] == 'leaf' then return end
+    if parent[1] == 'row' and depth > 0 then
+      is_stretched = false
+      return
+    end
 
     for _, child in pairs(parent[2]) do
       if child[1] == 'leaf' and child[2] == winid then
-        table.insert(path, parent[1])
-        -- It's stretched if 'col' is in path and 'row' is not in path[1:]
-
-        if #path == 1 then
-          is_stretched = path[1] == 'col'
-          return
-        end
-
-        is_stretched = true
-        for i, node_type in pairs(path) do
-          if i > 1 and node_type == 'row' then
-            is_stretched = false
-            break
-          end
-        end
-
+        is_stretched = parent[1] == 'col'
         return
       end
 
-      recurse(child, winid, vim.list_extend(vim.deepcopy(path), {parent[1]}))
+      recurse(child, winid, depth + 1)
     end
   end
 
-  recurse(self.tree, vim.fn.win_getid(winnr), {})
+  recurse(self.tree, vim.fn.win_getid(winnr), 0)
   return is_stretched
 end
 
