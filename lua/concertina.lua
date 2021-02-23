@@ -8,7 +8,7 @@ local Win, Viewport, Layout, WinResizeObserver = {}, {}, M.Layout, {}
 function M.init()
   if vim.g.loaded_concertina then return end
 
-  vim.g.loaded_concertina = '0.0.3'
+  vim.g.loaded_concertina = '0.0.4'
   vim.o.winminheight = 0
 
   command([[
