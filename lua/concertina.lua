@@ -22,8 +22,7 @@ function M.init()
     au User concertina_on_enter lua require'concertina'.on_enter()
     ]] .. au_win_scrolled .. [[
     au CursorHold  * lua require'concertina'.on_view()
-  aug END
-  ]])
+  aug END]])
 
   if not vim.g.concertina_win_heights then
     vim.g.concertina_win_heights = {godebugstacktrace=10, godebugoutput=10, rst=20}
