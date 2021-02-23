@@ -8,18 +8,20 @@ local Win, Viewport, Layout, WinResizeObserver = {}, {}, M.Layout, {}
 function M.init()
   if vim.g.loaded_concertina then return end
 
-  vim.g.loaded_concertina = '0.0.4'
+  vim.g.loaded_concertina = '0.0.5'
   vim.o.winminheight = 0
 
+  local au_win_scrolled = vim.fn.exists('##WinScrolled') == 1 and
+    "au WinScrolled * lua require'concertina'.on_view()\n" or ''
   command([[
   aug concertina
     au!
     au WinEnter * lua require'concertina'.on_enter()
     au BufEnter * lua require'concertina'.on_enter('BufEnter')
     au FileType * lua vim.defer_fn(function() require'concertina'.on_enter('FileType') end, 0)
-    au User concertina_on_enter lua require'concertina'.on_enter()]] ..
-    (vim.fn.exists('##WinScrolled') == 1 and "au WinScrolled * lua require'concertina'.on_view()" or '') ..
-    [[au CursorHold  * lua require'concertina'.on_view()
+    au User concertina_on_enter lua require'concertina'.on_enter()
+    ]] .. au_win_scrolled .. [[
+    au CursorHold  * lua require'concertina'.on_view()
   aug END
   ]])
 
