@@ -1,13 +1,14 @@
 local M =  {Layout={}, last_handled={}, toplines={}}
 local command = function(cmd) return vim.api.nvim_exec(cmd, false) end
 local MAX_HEIGHT = 999
+local WITHOUT_EFFECTS = 'keepalt keepjumps '
 
 local Win, Viewport, Layout, WinResizeObserver = {}, {}, M.Layout, {}
 
 function M.init()
   if vim.g.loaded_concertina then return end
 
-  vim.g.loaded_concertina = '0.0.2'
+  vim.g.loaded_concertina = '0.0.3'
   vim.o.winminheight = 0
 
   command([[
@@ -61,9 +62,11 @@ function M.on_enter(event)
     end
 
     win:keep_focused(function()
-      command('1windo resize' .. MAX_HEIGHT)
-      win:focus()
+       -- Prevent topleft windows from collapsing when a sequence like
+       -- `:rightbelow copen | rightbelow split | term` is used
+      command(WITHOUT_EFFECTS .. '1windo resize' .. MAX_HEIGHT)
 
+      win:focus()
       command('resize' .. win.height)
       win:set_fixed_heights_of_siblings()
 
@@ -113,7 +116,7 @@ end
 
 function Win:focus()
   if vim.fn.winnr() ~= self.winnr then
-    command(self.winnr .. 'wincmd w')
+    command(WITHOUT_EFFECTS .. self.winnr .. 'wincmd w')
   end
 end
 
@@ -154,7 +157,7 @@ end
 function Viewport:restore()
   local topline = M.toplines[self.winnr]
   if topline and vim.fn.winheight(self.winnr) > 0 then
-    command(self.winnr .. "windo call winrestview({'topline':" .. topline .. "})")
+    command(WITHOUT_EFFECTS .. self.winnr .. "windo call winrestview({'topline':" .. topline .. '})')
   end
 end
 
@@ -175,7 +178,7 @@ function Layout:set_fixed_height(winnr)
     winnr, vim.fn.getwinvar(winnr, '&bt'), vim.fn.getwinvar(winnr, '&ft'))
 
   if height then
-    command(winnr .. 'windo resize' .. height .. '|setl winfixheight')
+    command(WITHOUT_EFFECTS .. winnr .. 'windo resize' .. height .. '|setl winfixheight')
     for _, observer in pairs(self.observers) do observer:on_resize(winnr, height) end
   end
 
