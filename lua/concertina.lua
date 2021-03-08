@@ -1,47 +1,54 @@
-local M =  {Layout={}, last_handled={}, toplines={}}
-local command = function(cmd) return vim.api.nvim_exec(cmd, false) end
+local M = {Layout={}, last_handled={}, toplines={}, last_winid=0}
 local MAX_HEIGHT = 999
+local FIRST_WINNR = 1
 local WITHOUT_EFFECTS = 'keepalt keepjumps '
+local api, fn, g, o = vim.api, vim.fn, vim.g, vim.o
+local command = function(cmd) return api.nvim_exec(cmd, false) end
 
 local Win, Viewport, Layout, WinResizeObserver = {}, {}, M.Layout, {}
 
 function M.init()
-  if vim.g.loaded_concertina then return end
+  if g.loaded_concertina then return end
 
-  vim.g.loaded_concertina = '0.0.5'
-  vim.o.winminheight = 0
+  g.loaded_concertina = '0.0.6'
+  o.winminheight = 0
 
-  local au_win_scrolled = vim.fn.exists('##WinScrolled') == 1 and
+  local au_win_scrolled = fn.exists('##WinScrolled') == 1 and
     "au WinScrolled * lua require'concertina'.on_view()\n" or ''
   command([[
   aug concertina
     au!
+    au User concertina_on_enter lua require'concertina'.on_enter()
     au WinEnter * lua require'concertina'.on_enter()
     au BufEnter * lua require'concertina'.on_enter('BufEnter')
     au FileType * lua vim.defer_fn(function() require'concertina'.on_enter('FileType') end, 0)
-    au User concertina_on_enter lua require'concertina'.on_enter()
     ]] .. au_win_scrolled .. [[
-    au CursorHold  * lua require'concertina'.on_view()
+    au CursorHold * lua require'concertina'.on_view()
+    au WinLeave * lua require'concertina'.on_leave()
   aug END]])
 
-  if not vim.g.concertina_win_heights then
-    vim.g.concertina_win_heights = {godebugstacktrace=10, godebugoutput=10, rst=20}
+  if not g.concertina_win_heights then
+    g.concertina_win_heights = {godebugstacktrace=10, godebugoutput=10, rst=20}
   end
-  if not vim.g.concertina_stretched_win_heights then
-    vim.g.concertina_stretched_win_heights = {quickfix=10, terminal=20, quickrun=20, godoc=20, pymoderun=20}
+  if not g.concertina_stretched_win_heights then
+    g.concertina_stretched_win_heights = {quickfix=10, terminal=20, quickrun=20, godoc=20, pymoderun=20}
   end
-  if not vim.g.concertina_ignore then -- WARN: can be overruled by win_heights and stretched_win_heights
-    vim.g.concertina_ignore = {nofile=true, godebugvariables=true}
+  if not g.concertina_ignore then -- WARN: can be overruled by win_heights and stretched_win_heights
+    g.concertina_ignore = {nofile=true, godebugvariables=true}
   end
 end
 
 function M.on_view()
-  Viewport:new(vim.fn.winnr()):store()
+  Viewport:new(fn.winnr()):store()
+end
+
+function M.on_leave()
+  M.last_winid = fn.win_getid()
 end
 
 function M.on_enter(event)
   local layout = Layout:new()
-  local win = Win:new(layout)
+  local win = Win:new(fn.winnr(), layout)
   table.insert(layout.observers, WinResizeObserver:new(win))
 
   win:handle_enter(function(last_handled)
@@ -52,28 +59,34 @@ function M.on_enter(event)
     if event == 'BufEnter' and last_handled.bufnr == win.bufnr
       or event == 'FileType' and last_handled.filetype == win.filetype
       or win.fixed_height == nil and win:is_ignoreable()
-      or vim.api.nvim_win_get_config(vim.fn.win_getid()).relative ~= '' then
+      or api.nvim_win_get_config(fn.win_getid()).relative ~= '' then
       return
     end
 
     -- If the only window, maximize it and restore the viewport
-    if vim.fn.winnr('$') == 1 then
-      command('resize' .. MAX_HEIGHT)
-      return Viewport:new(win.winnr):restore()
+    if fn.winnr('$') == FIRST_WINNR then
+      return layout:maximize(FIRST_WINNR) and Viewport:new(win.winnr):restore()
     end
 
     win:keep_focused(function()
-       -- Prevent topleft windows from collapsing when a sequence like
-       -- `:rightbelow copen | rightbelow split | term` is used
-      command(WITHOUT_EFFECTS .. '1windo resize' .. MAX_HEIGHT)
+      -- Prevent topleft windows from collapsing when a sequence like
+      -- `:rightbelow copen | rightbelow split | term` is used
+      local last_winnr = fn.win_id2win(M.last_winid)
+      if last_winnr == 0 then
+        layout:maximize(FIRST_WINNR)
+      else
+        local last_win = Win:new(last_winnr, layout)
+        if not last_win:is_ignoreable() and last_win.fixed_height then
+          layout:maximize(FIRST_WINNR)
+          layout:set_height(last_win)
+        end
+      end
 
-      win:focus()
-      command('resize' .. win.height)
+      layout:set_height(win)
       win:set_fixed_heights_of_siblings()
 
       if win.should_enforce_height then
-        win:focus()
-        command('resize' .. win.height)
+        layout:set_height(win)
       end
       win:each_sibling(function(winnr) Viewport:new(winnr):restore() end)
     end)
@@ -84,13 +97,12 @@ end
 
 Win.__index = Win
 
-function Win:new(layout)
+function Win:new(winnr, layout)
   local win = setmetatable({
     layout   = layout,
-    filetype = vim.bo.filetype,
-    buftype  = vim.bo.buftype,
-    bufnr    = vim.fn.bufnr(),
-    winnr    = vim.fn.winnr(),
+    filetype = fn.getwinvar(winnr, '&ft'),
+    buftype  = fn.getwinvar(winnr, '&bt'),
+    winnr    = winnr,
   }, self)
   win.fixed_height = layout:get_fixed_height(win.winnr, win.buftype, win.filetype)
   win.height = win.fixed_height or MAX_HEIGHT
@@ -99,26 +111,25 @@ function Win:new(layout)
 end
 
 function Win:each_sibling(callback)
-  for winnr = 1, vim.fn.winnr('$') do
+  for winnr = FIRST_WINNR, fn.winnr('$') do
     if winnr ~= self.winnr then callback(winnr) end
   end
 end
 
 function Win:keep_focused(callback)
-  local original_eventignore = vim.o.eventignore
-  vim.o.eventignore = 'all'
+  local original_eventignore = o.eventignore
+  o.eventignore = 'all'
 
   local ok, result = pcall(callback)
   if not ok then error(debug.traceback(result)) end
 
   self:focus()
-  vim.o.eventignore = original_eventignore
+  o.eventignore = original_eventignore
 end
 
 function Win:focus()
-  if vim.fn.winnr() ~= self.winnr then
-    command(WITHOUT_EFFECTS .. self.winnr .. 'wincmd w')
-  end
+  if fn.winnr() == self.winnr then return end
+  command(WITHOUT_EFFECTS .. self.winnr .. 'wincmd w')
 end
 
 function Win:is_ignoreable()
@@ -133,7 +144,7 @@ function Win:set_fixed_heights_of_siblings()
   end)
   -- do the second walk on fixed height windows only
   self:each_sibling(function(winnr)
-    if fixed_heights[winnr] and vim.fn.winheight(winnr) ~= fixed_heights[winnr] then
+    if fixed_heights[winnr] and fn.winheight(winnr) ~= fixed_heights[winnr] then
       self.layout:set_fixed_height(winnr)
     end
   end)
@@ -152,12 +163,12 @@ function Viewport:new(winnr)
 end
 
 function Viewport:store()
-  M.toplines[self.winnr] = vim.fn.winsaveview().topline
+  M.toplines[self.winnr] = fn.winsaveview().topline
 end
 
 function Viewport:restore()
   local topline = M.toplines[self.winnr]
-  if topline and vim.fn.winheight(self.winnr) > 0 then
+  if topline and fn.winheight(self.winnr) > 0 then
     command(WITHOUT_EFFECTS .. self.winnr .. "windo call winrestview({'topline':" .. topline .. '})')
   end
 end
@@ -166,24 +177,44 @@ Layout.__index = Layout
 
 function Layout:new()
   return setmetatable({
-    tree                  = vim.fn.winlayout(),
-    win_heights           = vim.g.concertina_win_heights,
-    stretched_win_heights = vim.g.concertina_stretched_win_heights,
-    ignore                = vim.g.concertina_ignore,
+    tree                  = fn.winlayout(),
+    win_heights           = g.concertina_win_heights,
+    stretched_win_heights = g.concertina_stretched_win_heights,
+    ignore                = g.concertina_ignore,
     observers             = {},
   }, self)
 end
 
 function Layout:set_fixed_height(winnr)
   local height = self:get_fixed_height(
-    winnr, vim.fn.getwinvar(winnr, '&bt'), vim.fn.getwinvar(winnr, '&ft'))
+    winnr, fn.getwinvar(winnr, '&bt'), fn.getwinvar(winnr, '&ft'))
 
   if height then
     command(WITHOUT_EFFECTS .. winnr .. 'windo resize' .. height .. '|setl winfixheight')
-    for _, observer in pairs(self.observers) do observer:on_resize(winnr, height) end
+    self:notify_resized(winnr, height)
   end
 
   return height
+end
+
+function Layout:set_height(win)
+  local lock_height = win.fixed_height and '|setl winfixheight' or ''
+
+  command(WITHOUT_EFFECTS .. win.winnr .. 'windo resize' .. win.height .. lock_height)
+  self:notify_resized(win.winnr, win.height)
+
+  return win.height
+end
+
+function Layout:maximize(winnr)
+  command(WITHOUT_EFFECTS .. winnr .. 'windo resize' .. MAX_HEIGHT)
+  self:notify_resized(winnr, MAX_HEIGHT)
+end
+
+function Layout:notify_resized(winnr, height)
+  for _, observer in pairs(self.observers) do
+    observer:on_resize(winnr, height)
+  end
 end
 
 function Layout:get_fixed_height(winnr, buftype, filetype)
@@ -214,7 +245,7 @@ function Layout:is_stretched(winnr)
     end
   end
 
-  recurse(self.tree, vim.fn.win_getid(winnr), 0)
+  recurse(self.tree, fn.win_getid(winnr), 0)
   return is_stretched
 end
 
@@ -224,11 +255,12 @@ function WinResizeObserver:new(win)
   return setmetatable({win = win}, self)
 end
 
-function WinResizeObserver:on_resize(_, height)
+function WinResizeObserver:on_resize(winnr, height)
   -- Enforce the window height if the original height has changed and
   -- 1) if the iterable window has bigger height, as it looks more natural
   -- 2) if the focused window has fixed height
-  if vim.fn.winheight(self.win.winnr) ~= self.win.height
+  if self.winnr ~= winnr
+    and fn.winheight(self.win.winnr) ~= self.win.height
     and (height > self.win.height or self.win.fixed_height) then
     self.win.should_enforce_height = true
   end
