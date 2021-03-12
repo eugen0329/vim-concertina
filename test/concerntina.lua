@@ -4,6 +4,9 @@ local heights = require('test/helper').heights
 local exec = require('test/helper').exec
 local stretched_windows = require('test/helper').stretched_windows
 
+vim.g.concertina_win_heights = {godebugstacktrace=8, godebugoutput=5}
+vim.g.concertina_stretched_win_heights = {terminal=5, quickfix=10}
+
 -- max window height = 22 (no windows above or below)
 -- separator height between windows = 1 (bar between them)
 -- min window height = 0 (collapsed)
@@ -79,7 +82,7 @@ function test_two_horizontal_windows_with_horizontal_qf()
   goto_window(2)
   lu.assertEquals(heights(), {0, 10, 10})
   goto_window(3)
-  lu.assertEquals(heights(), {10, 0, 10}, 'TODO keep window 2 focused as it was focused before entering the qf')
+  lu.assertEquals(heights(), {0, 10, 10})
 end
 
 -- +-----+------+
@@ -135,11 +138,11 @@ function test_conflicts_between_two_fixed_height_windows()
   goto_window(4)
   lu.assertEquals(heights(), {22, 0, 10, 10})
   goto_window(3)
-  lu.assertEquals(heights(), {22, 0, 20, 0}, 'current terminal window is enforced to have height = 20')
+  lu.assertEquals(heights(), {22, 0, 5, 15})
   goto_window(2)
-  lu.assertEquals(heights(), {22, 1, 10, 9})
+  lu.assertEquals(heights(), {22, 5, 5, 10})
   goto_window(1)
-  lu.assertEquals(heights(), {22, 0, 10, 10})
+  lu.assertEquals(heights(), {22, 5, 5, 10})
 end
 
 -- +-----+------+
@@ -173,13 +176,13 @@ function test_conflicts_between_two_fixed_height_windows_and_a_regular_between_t
   exec({'%bwipe!', 'split', 'wincmd L', 'leftabove split', 'term echo 1', 'copen'})
   lu.assertItemsEquals(stretched_windows(), {2, 3, 4})
   goto_window(4)
-  lu.assertEquals(heights(), {22, 10, 0, 10})
+  lu.assertEquals(heights(), {22, 5, 5, 10})
   goto_window(3)
-  lu.assertEquals(heights(), {22, 9, 1, 10})
+  lu.assertEquals(heights(), {22, 5, 5, 10})
   goto_window(2)
-  lu.assertEquals(heights(), {22, 20, 0, 0})
+  lu.assertEquals(heights(), {22, 5, 5, 10})
   goto_window(1)
-  lu.assertEquals(heights(), {22, 10, 0, 10})
+  lu.assertEquals(heights(), {22, 5, 5, 10})
 end
 
 -- +----------+------+
@@ -190,25 +193,45 @@ end
 -- |    4 output     |
 -- +-----------------+
 function test_go_debugger_layout()
-  vim.g.concertina_win_heights = {
-    godebugstacktrace=8,
-    godebugoutput=5,
-  }
   exec({
     '%bwipe!',
     'topleft    vsplit godebugvariables',  'setf godebugvariables',
     'belowright split  godebugstacktrace', 'setf godebugstacktrace',
     'botright   split  godebugoutput',     'setf godebugoutput',
+    '3wincmd w'
   })
   lu.assertItemsEquals(stretched_windows(), {4})
   goto_window(4)
   lu.assertEquals(heights(), {7, 8, 16, 5})
-  goto_window(3)
-  lu.assertEquals(heights(), {7, 8, 16, 5})
   goto_window(2)
   lu.assertEquals(heights(), {7, 8, 16, 5})
-  goto_window(1)
+  goto_window(3)
   lu.assertEquals(heights(), {7, 8, 16, 5})
+  goto_window(4)
+  lu.assertEquals(heights(), {7, 8, 16, 5})
+end
+
+-- +--------+
+-- |   1    |
+-- +-- -----+
+-- | 2 qf   |
+-- +--------+
+-- | 3 term |
+-- +--------+
+function test_gradual_opening_multiple_fixed_height_windows()
+  exec({'%bwipe!', 'rightbelow copen'})
+  lu.assertItemsEquals(stretched_windows(), {1, 2})
+  lu.assertEquals(heights(), {11, 10})
+  exec({'rightbelow split | term'})
+  lu.assertItemsEquals(stretched_windows(), {1, 2, 3})
+  lu.assertEquals(heights(), {5, 10, 5})
+
+  goto_window(3)
+  lu.assertEquals(heights(), {5, 10, 5})
+  goto_window(2)
+  lu.assertEquals(heights(), {5, 10, 5})
+  goto_window(1)
+  lu.assertEquals(heights(), {5, 10, 5})
 end
 
 os.exit(lu.LuaUnit.new():runSuite())

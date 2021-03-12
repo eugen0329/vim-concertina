@@ -17,9 +17,11 @@ end
 
 function M.exec(commands)
   for _, command in ipairs(commands) do
-    local bufnr = vim.fn.bufnr()
+    local bufnr, winnr = vim.fn.bufnr(), vim.fn.winnr()
     vim.api.nvim_exec(command, false)
-    vim.api.nvim_exec('doau WinEnter', false)
+    if vim.fn.winnr() ~= winnr then
+      vim.api.nvim_exec('doau WinEnter', false)
+    end
     if vim.fn.bufnr() ~= bufnr then
       vim.api.nvim_exec('doau BufEnter', false)
     end
